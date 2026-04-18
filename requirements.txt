@@ -1,0 +1,10 @@
+streamlit>=1.28.0
+pandas
+numpy
+plotly
+openmeteo-requests
+requests-cache
+retry-requests
+joblib
+scikit-learn
+scipy

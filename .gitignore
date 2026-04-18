@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Cache dosyaları
+.cache.sqlite
+*.cache
+
+# Zip arsivleri
+*.zip
+
+# Geçici dosyalar
+*.png
+antigravity_results.png
+tahmin_analiz_sonuclari.png
