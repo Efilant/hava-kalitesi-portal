@@ -225,7 +225,7 @@ if model:
         if weather_df is not None:
             # 1. Rüzgar Verisini Stabilize Etme (Yumuşatma)
             # Rüzgardaki ani dalgalanmaların PM10 tahminini zıplatmaması için hareketli ortalama alıyoruz
-            weather_df['wind_speed_10m'] = weather_df['wind_speed_10m'].rolling(window=3, center=True).mean().fillna(method='ffill').fillna(method='bfill')
+            weather_df['wind_speed_10m'] = weather_df['wind_speed_10m'].rolling(window=3, center=True).mean().ffill().bfill()
             
             # 2. Güncel Saate Göre Filtreleme (2s Geçmiş, 3s Gelecek)
             # Pencere: [Şu an - 2s, Şu an + 3s] -> Toplam 6 Saat
