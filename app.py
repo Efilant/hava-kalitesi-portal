@@ -113,7 +113,7 @@ def fetch_weather_data(lat, lon):
             "time": pd.date_range(
                 start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
                 periods=periods,
-                freq="H"
+                freq="h"
             ),
             "temperature_2m": hourly.Variables(0).ValuesAsNumpy(),
             "relative_humidity_2m": hourly.Variables(1).ValuesAsNumpy(),
