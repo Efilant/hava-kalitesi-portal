@@ -229,7 +229,7 @@ if model:
             
             # 2. Güncel Saate Göre Filtreleme (2s Geçmiş, 3s Gelecek)
             # Pencere: [Şu an - 2s, Şu an + 3s] -> Toplam 6 Saat
-            sim_now = pd.Timestamp.now(tz='UTC').floor('H')
+            sim_now = pd.Timestamp.now(tz='UTC').floor('h')
             try:
                 # API 24 saat geçmiş verdiği için sim_now mutlaka içindedir
                 now_idx = weather_df[weather_df['time'] == sim_now].index[0]
