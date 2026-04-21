@@ -101,7 +101,7 @@ def fetch_weather_data(lat, lon):
             "latitude": lat,
             "longitude": lon,
             "hourly": ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "wind_direction_10m"],
-            "forecast_days": 1,
+            "forecast_days": 2,
             "past_days": 1
         }
         responses = openmeteo.weather_api(url, params=params)
@@ -231,12 +231,22 @@ if model:
             # Pencere: [Şu an - 2s, Şu an + 3s] -> Toplam 6 Saat
             sim_now = pd.Timestamp.now(tz='UTC').floor('h')
             try:
-                # API 24 saat geçmiş verdiği için sim_now mutlaka içindedir
+                # API verisi içinde 'şu an'ı bul
                 now_idx = weather_df[weather_df['time'] == sim_now].index[0]
-                weather_df = weather_df.iloc[now_idx-2 : now_idx+4].reset_index(drop=True)
+                # Pencere: [Şu an - 2s, Şu an + 3s]
+                start_slice = max(0, now_idx - 2)
+                end_slice = min(len(weather_df), now_idx + 4)
+                weather_df = weather_df.iloc[start_slice : end_slice].reset_index(drop=True)
+                # 'Şu an'ın yeni DataFrame içindeki konumu
+                now_rel_idx = now_idx - start_slice
             except Exception:
-                # Hata durumunda (API değişirse) eski güvenli filtreye dön
+                # Hata durumunda (API değişirse) sadece gelecek veriyi al
                 weather_df = weather_df[weather_df['time'] >= sim_now].reset_index(drop=True)
+                now_rel_idx = 0
+            
+            if weather_df.empty:
+                st.warning("Seçili bölge için hava durumu verisi işlenemedi.")
+                st.stop()
             
             # Saat dilimini UTC'den İstanbul'a (UTC+3) çevir
             weather_df['time'] = weather_df['time'].dt.tz_convert('Europe/Istanbul')
@@ -266,8 +276,8 @@ if model:
             
             # Ana Panel (Özet)
             col1, col2, col3 = st.columns(3)
-            # Pencerede 'Şu an' 2. indekstedir (0: -2s, 1: -1s, 2: Now)
-            val = preds[2] if len(preds) > 2 else preds[0]
+            # 'Şu an' değeri
+            val = preds[now_rel_idx] if len(preds) > now_rel_idx else preds[0]
             
             # Hava Kalitesi Durumu (AQI Standartlarına Göre)
             if val <= 50:
@@ -338,10 +348,12 @@ if model:
             
             with t_col1:
                 st.subheader("🕒 Tahmin Analizi")
-                # Trendler (Gelecek 3 saat) - İndeksler: 3 (+1s), 4 (+2s), 5 (+3s)
-                diff_1h = preds[3] - val if len(preds) > 3 else 0
-                diff_2h = preds[4] - val if len(preds) > 4 else 0
-                diff_3h = preds[5] - val if len(preds) > 5 else 0
+                # Trendler (Gelecek saatler)
+                idx_1h, idx_2h, idx_3h = now_rel_idx + 1, now_rel_idx + 2, now_rel_idx + 3
+                
+                diff_1h = preds[idx_1h] - val if len(preds) > idx_1h else 0
+                diff_2h = preds[idx_2h] - val if len(preds) > idx_2h else 0
+                diff_3h = preds[idx_3h] - val if len(preds) > idx_3h else 0
                 
                 def get_trend_label(diff):
                     if diff > 2: return "Artış Bekleniyor 📈", "#e74c3c"
@@ -352,17 +364,32 @@ if model:
                 label2, col2_c = get_trend_label(diff_2h)
                 label3, col3_c = get_trend_label(diff_3h)
 
-                st.markdown(f"""
-                <div style='padding:10px; border-left: 5px solid {col1_c}; background-color: rgba(100,100,100,0.1); margin-bottom:10px'>
-                    <small>1 Saat Sonra</small><br><b>{label1}</b><br><small>Tahmin: {preds[3]:.1f} µg/m³</small>
-                </div>
-                <div style='padding:10px; border-left: 5px solid {col2_c}; background-color: rgba(100,100,100,0.1); margin-bottom:10px'>
-                    <small>2 Saat Sonra</small><br><b>{label2}</b><br><small>Tahmin: {preds[4]:.1f} µg/m³</small>
-                </div>
-                <div style='padding:10px; border-left: 5px solid {col3_c}; background-color: rgba(100,100,100,0.1); margin-bottom:10px'>
-                    <small>3 Saat Sonra</small><br><b>{label3}</b><br><small>Tahmin: {preds[5]:.1f} µg/m³</small>
-                </div>
-                """, unsafe_allow_html=True)
+                # 1 Saat Sonra
+                if len(preds) > idx_1h:
+                    st.markdown(f"""
+                    <div style='padding:10px; border-left: 5px solid {col1_c}; background-color: rgba(100,100,100,0.1); margin-bottom:10px'>
+                        <small>1 Saat Sonra</small><br><b>{label1}</b><br><small>Tahmin: {preds[idx_1h]:.1f} µg/m³</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # 2 Saat Sonra
+                if len(preds) > idx_2h:
+                    st.markdown(f"""
+                    <div style='padding:10px; border-left: 5px solid {col2_c}; background-color: rgba(100,100,100,0.1); margin-bottom:10px'>
+                        <small>2 Saat Sonra</small><br><b>{label2}</b><br><small>Tahmin: {preds[idx_2h]:.1f} µg/m³</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # 3 Saat Sonra
+                if len(preds) > idx_3h:
+                    st.markdown(f"""
+                    <div style='padding:10px; border-left: 5px solid {col3_c}; background-color: rgba(100,100,100,0.1); margin-bottom:10px'>
+                        <small>3 Saat Sonra</small><br><b>{label3}</b><br><small>Tahmin: {preds[idx_3h]:.1f} µg/m³</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                if len(preds) <= idx_1h:
+                    st.warning("Yeterli gelecek tahmini verisi bulunamadı.")
 
             with t_col2:
                 st.subheader("📈 6 Saatlik Değişim")
@@ -374,29 +401,30 @@ if model:
 
                 fig = go.Figure()
 
-                # Geçmiş veri çizgisi (0: -2s, 1: -1s, 2: şu an)
+                # Geçmiş veri çizgisi
                 fig.add_trace(go.Scatter(
-                    x=processed_df['time'][:3],
-                    y=preds[:3],
+                    x=processed_df['time'][:now_rel_idx+1],
+                    y=preds[:now_rel_idx+1],
                     mode='lines+markers',
                     name='Geçmiş (Tahmin)',
                     line=dict(width=3, color='#95a5a6', dash='dot'),
                     marker=dict(size=8, color='#95a5a6')
                 ))
                 
-                # Şu an noktası (index 2)
-                fig.add_trace(go.Scatter(
-                    x=[processed_df['time'].iloc[2]],
-                    y=[preds[2]],
-                    mode='markers',
-                    name='Şu An',
-                    marker=dict(size=14, color='#e74c3c', symbol='star', line=dict(color='white', width=2))
-                ))
+                # Şu an noktası
+                if len(preds) > now_rel_idx:
+                    fig.add_trace(go.Scatter(
+                        x=[processed_df['time'].iloc[now_rel_idx]],
+                        y=[preds[now_rel_idx]],
+                        mode='markers',
+                        name='Şu An',
+                        marker=dict(size=14, color='#e74c3c', symbol='star', line=dict(color='white', width=2))
+                    ))
                 
-                # Gelecek tahmin çizgisi (index 2 → 5)
+                # Gelecek tahmin çizgisi
                 fig.add_trace(go.Scatter(
-                    x=processed_df['time'][2:],
-                    y=preds[2:6],
+                    x=processed_df['time'][now_rel_idx:],
+                    y=preds[now_rel_idx:],
                     mode='lines+markers',
                     name='Gelecek Tahmin',
                     line=dict(width=4, color=chart_color),
@@ -404,14 +432,15 @@ if model:
                 ))
                 
                 # Şu anı gösteren dikey çizgi
-                fig.add_vline(
-                    x=processed_df['time'].iloc[2].timestamp() * 1000,
-                    line_dash="dash",
-                    line_color="#e74c3c",
-                    opacity=0.6,
-                    annotation_text="Şu An",
-                    annotation_position="top right"
-                )
+                if len(processed_df) > now_rel_idx:
+                    fig.add_vline(
+                        x=processed_df['time'].iloc[now_rel_idx].timestamp() * 1000,
+                        line_dash="dash",
+                        line_color="#e74c3c",
+                        opacity=0.6,
+                        annotation_text="Şu An",
+                        annotation_position="top right"
+                    )
                 
                 fig.update_layout(
                     margin=dict(l=20, r=20, t=30, b=20),
